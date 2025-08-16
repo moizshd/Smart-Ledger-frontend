@@ -1,3 +1,4 @@
+import DatePickerField from '@/components/ui/DatePickerField';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
@@ -46,7 +47,7 @@ export default function IssueForm() {
           <Card.Content>
             <Text variant="titleLarge" style={styles.heading}>Issue Item</Text>
             <TextInput label="Name" value={form.name} onChangeText={t => handleChange('name', t)} style={styles.input} />
-            <TextInput label="Date (YYYY-MM-DD)" value={form.date} onChangeText={t => handleChange('date', t)} style={styles.input} />
+            <DatePickerField label="Date (YYYY-MM-DD)" value={form.date} onChange={t => handleChange('date', t)} />
             <TextInput label="Quantity" value={form.quantity} onChangeText={t => handleChange('quantity', t)} keyboardType="numeric" style={styles.input} />
             <TextInput label="Approving Authority" value={form.approvingAuthority} onChangeText={t => handleChange('approvingAuthority', t)} style={styles.input} />
             <TextInput label="Category" value={form.category} onChangeText={t => handleChange('category', t)} style={styles.input} />

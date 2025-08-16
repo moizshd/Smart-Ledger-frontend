@@ -1,4 +1,5 @@
 // app/category/[categoryId].tsx
+import DatePickerField from '@/components/ui/DatePickerField';
 import { Issue, Item } from '@/types/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -76,6 +77,10 @@ export default function CategoryScreen() {
     setIssueForm(prev => ({ ...prev, [field]: v }));
   };
 
+  const upsertLocalItem = (updated: Item) => {
+    setItems(prev => prev.map(i => (i._id === updated._id ? { ...i, quantity: updated.quantity } : i)));
+  };
+
   const addItem = async () => {
     try {
       setLoading(true);
@@ -91,10 +96,22 @@ export default function CategoryScreen() {
   const issueItem = async () => {
     try {
       setLoading(true);
-      await API.post('/issues', { ...issueForm, category: categoryId });
+      const res = await API.post('/issues', { ...issueForm, category: categoryId });
+      if (res.data?.item) upsertLocalItem(res.data.item);
       setModalIssueItem(false);
-      setIssueForm({ item: '', name: '', date: '', quantity: '', approvingAuthority: '', issueTime: '', condition: '' });
+      setIssueForm({ item: value || '', name: '', date: '', quantity: '', approvingAuthority: '', issueTime: '', condition: '' });
       fetchIssues();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unissueById = async (issue: Issue) => {
+    try {
+      setLoading(true);
+      const res = await API.post('/issues/unissue-by-id', { issueId: issue._id });
+      if (res.data?.item) upsertLocalItem(res.data.item);
+      setIssues(prev => prev.filter(i => i._id !== issue._id));
     } finally {
       setLoading(false);
     }
@@ -111,6 +128,7 @@ export default function CategoryScreen() {
         <Text variant="titleLarge" style={styles.heading}>Items</Text>
         {items.map(item => (
           <Card key={item._id} style={styles.card}>
+            {item.image ? <Card.Cover source={{ uri: item.image }} style={styles.cover} /> : null}
             <Card.Title title={item.name} subtitle={`Qty: ${item.quantity}`} />
           </Card>
         ))}
@@ -122,15 +140,31 @@ export default function CategoryScreen() {
 
         {/* FILTER SECTION */}
         <Text variant="titleLarge" style={styles.heading}>Filter Issued Items</Text>
-        {['name', 'approvingAuthority', 'condition', 'date', 'issueTime'].map(field => (
-          <TextInput
-            key={field}
-            label={field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')}
-            value={(filters as any)[field]}
-            onChangeText={t => setFilters(p => ({ ...p, [field]: t }))}
-            style={styles.input}
-          />
-        ))}
+        <TextInput
+          label="Name"
+          value={filters.name}
+          onChangeText={t => setFilters(p => ({ ...p, name: t }))}
+          style={styles.input}
+        />
+        <TextInput
+          label="Approving Authority"
+          value={filters.approvingAuthority}
+          onChangeText={t => setFilters(p => ({ ...p, approvingAuthority: t }))}
+          style={styles.input}
+        />
+        <TextInput
+          label="Condition"
+          value={filters.condition}
+          onChangeText={t => setFilters(p => ({ ...p, condition: t }))}
+          style={styles.input}
+        />
+        <DatePickerField label="Date" value={filters.date} onChange={t => setFilters(p => ({ ...p, date: t }))} />
+        <TextInput
+          label="Issue Time"
+          value={filters.issueTime}
+          onChangeText={t => setFilters(p => ({ ...p, issueTime: t }))}
+          style={styles.input}
+        />
         <Button mode="contained" onPress={fetchIssues}>Apply Filters</Button>
 
         {/* ISSUED ITEMS LIST */}
@@ -143,6 +177,11 @@ export default function CategoryScreen() {
               <Text>Approved by: {issue.approvingAuthority}</Text>
               <Text>Date: {issue.date} | Time: {issue.issueTime}</Text>
               <Text>Condition: {issue.condition}</Text>
+              <View style={{ marginTop: 8 }}>
+                <Button mode="text" onPress={() => unissueById(issue)} loading={loading} disabled={loading}>
+                  Unissue
+                </Button>
+              </View>
             </Card.Content>
           </Card>
         ))}
@@ -153,16 +192,18 @@ export default function CategoryScreen() {
         <Dialog visible={modalAddItem} onDismiss={() => setModalAddItem(false)}>
           <Dialog.Title>Add Item</Dialog.Title>
           <Dialog.Content>
-            {['name', 'description', 'quantity', 'condition'].map(field => (
-              <TextInput
-                key={field}
-                label={field.charAt(0).toUpperCase() + field.slice(1)}
-                value={(newItem as any)[field]}
-                onChangeText={t => handleChangeItem(field as keyof typeof newItem, t)}
-                style={styles.input}
-                keyboardType={field === 'quantity' ? 'numeric' : 'default'}
-              />
-            ))}
+            <ScrollView style={styles.dialogScroll} contentContainerStyle={{ paddingBottom: 8 }}>
+              {['name', 'description', 'quantity', 'condition'].map(field => (
+                <TextInput
+                  key={field}
+                  label={field.charAt(0).toUpperCase() + field.slice(1)}
+                  value={(newItem as any)[field]}
+                  onChangeText={t => handleChangeItem(field as keyof typeof newItem, t)}
+                  style={styles.input}
+                  keyboardType={field === 'quantity' ? 'numeric' : 'default'}
+                />
+              ))}
+            </ScrollView>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setModalAddItem(false)}>Cancel</Button>
@@ -176,32 +217,56 @@ export default function CategoryScreen() {
         <Dialog visible={modalIssueItem} onDismiss={() => setModalIssueItem(false)}>
           <Dialog.Title>Issue Item</Dialog.Title>
           <Dialog.Content>
-            {/* Dropdown Picker */}
-            <View style={styles.dropdownContainer}>
-              <DropDownPicker
-                open={open}
-                value={value}
-                items={dropdownItems}
-                setOpen={setOpen}
-                setValue={setValue}
-                setItems={setDropdownItems}
-                onChangeValue={(val) => handleChangeIssue('item', val || '')}
-                placeholder="Select Item"
-                style={styles.dropdown}
-                dropDownContainerStyle={styles.dropDownContainer}
-              />
-            </View>
+            <ScrollView style={styles.dialogScroll} contentContainerStyle={{ paddingBottom: 8 }}>
+              {/* Dropdown Picker */}
+              <View style={styles.dropdownContainer}>
+                <DropDownPicker
+                  open={open}
+                  value={value}
+                  items={dropdownItems}
+                  setOpen={setOpen}
+                  setValue={setValue}
+                  setItems={setDropdownItems}
+                  onChangeValue={(val) => handleChangeIssue('item', val || '')}
+                  placeholder="Select Item"
+                  style={styles.dropdown}
+                  dropDownContainerStyle={styles.dropDownContainer}
+                />
+              </View>
 
-            {['name', 'date', 'quantity', 'approvingAuthority', 'issueTime', 'condition'].map(field => (
               <TextInput
-                key={field}
-                label={field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1')}
-                value={(issueForm as any)[field]}
-                onChangeText={t => handleChangeIssue(field as keyof typeof issueForm, t)}
+                label="Name"
+                value={issueForm.name}
+                onChangeText={t => handleChangeIssue('name', t)}
                 style={styles.input}
-                keyboardType={field === 'quantity' ? 'numeric' : 'default'}
               />
-            ))}
+              <DatePickerField label="Date" value={issueForm.date} onChange={t => handleChangeIssue('date', t)} />
+              <TextInput
+                label="Quantity"
+                value={issueForm.quantity}
+                onChangeText={t => handleChangeIssue('quantity', t)}
+                keyboardType="numeric"
+                style={styles.input}
+              />
+              <TextInput
+                label="Approving Authority"
+                value={issueForm.approvingAuthority}
+                onChangeText={t => handleChangeIssue('approvingAuthority', t)}
+                style={styles.input}
+              />
+              <TextInput
+                label="Issue Time"
+                value={issueForm.issueTime}
+                onChangeText={t => handleChangeIssue('issueTime', t)}
+                style={styles.input}
+              />
+              <TextInput
+                label="Condition"
+                value={issueForm.condition}
+                onChangeText={t => handleChangeIssue('condition', t)}
+                style={styles.input}
+              />
+            </ScrollView>
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={() => setModalIssueItem(false)}>Cancel</Button>
@@ -223,4 +288,6 @@ const styles = StyleSheet.create({
   dropdownContainer: { zIndex: 1000, marginBottom: 15 },
   dropdown: { },
   dropDownContainer: { },
+  cover: { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+  dialogScroll: { maxHeight: 420 },
 });

@@ -2,6 +2,7 @@ export interface Store {
   _id: string;
   name: string;
   parentStore?: string;
+  image?: string;
 }
 
 export interface Category {
@@ -18,6 +19,7 @@ export interface Item {
   condition: string;
   quantity: number;
   category?: string;
+  image?: string;
 }
 
 export interface Issue {

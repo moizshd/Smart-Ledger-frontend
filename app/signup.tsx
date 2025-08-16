@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Image, StyleSheet, View } from 'react-native';
 import { Button, Card, Text, TextInput } from 'react-native-paper';
 import API from '../utils/api';
 
@@ -25,6 +25,9 @@ export default function SignupScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.logoWrap}>
+        <Image source={require('../assets/images/logo.png')} style={styles.logo} resizeMode="contain" />
+      </View>
       <Card mode="elevated" style={styles.card}>
         <Card.Content>
           <Text variant="headlineMedium" style={styles.title}>Create account</Text>
@@ -55,6 +58,8 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 20, flex: 1, justifyContent: 'center' },
+  logoWrap: { alignItems: 'center', marginBottom: 16 },
+  logo: { width: 120, height: 120 },
   card: { borderRadius: 16 },
   title: { marginBottom: 12 },
   input: { marginBottom: 12 },

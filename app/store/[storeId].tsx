@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
-import { Appbar, Button, Card, Dialog, FAB, Portal, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Appbar, Button, Card, Dialog, FAB, Portal, Text, TextInput } from 'react-native-paper';
 import API from '../../utils/api';
 
 export default function StoreScreen() {
@@ -19,14 +19,21 @@ export default function StoreScreen() {
 
   const [formData, setFormData] = useState({ name: '', image: '' });
   const [loading, setLoading] = useState(false);
+  const [fabOpen, setFabOpen] = useState(false);
+  const [fetching, setFetching] = useState(false);
 
   const fetchData = async () => {
+  setFetching(true);
+  try {
   const [storeRes, catRes] = await Promise.all([
     API.get(`/stores?parent=${storeId}`),
     API.get(`/categories?store=${storeId}`)
   ]);
   setStores(storeRes.data);
   setCategories(catRes.data);
+} finally {
+  setFetching(false);
+}
 };
 
 
@@ -67,23 +74,40 @@ export default function StoreScreen() {
         <Appbar.Action icon="folder-plus" onPress={() => { setModalType('category'); setDialogVisible(true); }} />
       </Appbar.Header>
 
-      <ScrollView style={styles.container}>
-        <Text variant="titleLarge" style={styles.heading}>Sub-Stores</Text>
-        {stores.map(store => (
-          <Card key={store._id} style={styles.card} onPress={() => router.push(`/store/${store._id}`)}>
-            <Card.Title title={store.name} subtitle={`Nested store`} />
-          </Card>
-        ))}
+      {fetching ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator animating size="large" />
+        </View>
+      ) : (
+        <ScrollView style={styles.container}>
+          <Text variant="titleLarge" style={styles.heading}>Sub-Stores</Text>
+          {stores.map(store => (
+            <Card key={store._id} style={styles.card} onPress={() => router.push(`/store/${store._id}`)}>
+              {store.image ? <Card.Cover source={{ uri: store.image }} style={styles.cover} /> : null}
+              <Card.Title title={store.name} subtitle={`Nested store`} />
+            </Card>
+          ))}
 
-        <Text variant="titleLarge" style={styles.heading}>Categories</Text>
-        {categories.map(category => (
-          <Card key={category._id} style={styles.card} onPress={() => router.push(`/category/${category._id}`)}>
-            <Card.Title title={category.name} subtitle={category.image ? 'Image available' : 'No image'} />
-          </Card>
-        ))}
-      </ScrollView>
+          <Text variant="titleLarge" style={styles.heading}>Categories</Text>
+          {categories.map(category => (
+            <Card key={category._id} style={styles.card} onPress={() => router.push(`/category/${category._id}`)}>
+              {category.image ? <Card.Cover source={{ uri: category.image }} style={styles.cover} /> : null}
+              <Card.Title title={category.name} subtitle={category.image ? 'Image available' : 'No image'} />
+            </Card>
+          ))}
+        </ScrollView>
+      )}
 
-      <FAB icon="plus" style={styles.fab} onPress={() => { setModalType('store'); setDialogVisible(true); }} />
+      <FAB.Group
+        open={fabOpen}
+        visible
+        icon={fabOpen ? 'close' : 'plus'}
+        actions={[
+          { icon: 'store-plus', label: 'Add Sub-Store', onPress: () => { setModalType('store'); setDialogVisible(true); } },
+          { icon: 'folder-plus', label: 'Add Category', onPress: () => { setModalType('category'); setDialogVisible(true); } },
+        ]}
+        onStateChange={({ open }) => setFabOpen(open)}
+      />
 
       <Portal>
         <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
@@ -116,4 +140,6 @@ const styles = StyleSheet.create({
   card: { marginBottom: 10, borderRadius: 12 },
   input: { marginBottom: 12 },
   fab: { position: 'absolute', right: 16, bottom: 24 },
+  cover: { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
 });
