@@ -132,38 +132,46 @@ export default function StoreScreen() {
       ) : (
         <ScrollView style={styles.container}>
           <Text variant="titleLarge" style={styles.heading}>Sub-Stores</Text>
-          {stores.map(store => (
-            <Card key={store._id} style={styles.card} onPress={() => router.push(`/store/${store._id}`)}>
-              {store.image ? <Card.Cover source={{ uri: store.image }} style={styles.cover} /> : null}
-              <Card.Title
-                title={store.name}
-                subtitle={`Nested store`}
-                right={() => (
-                  <View style={{ flexDirection: 'row' }}>
-                    <IconButton icon="pencil" onPress={() => openEdit('store', store)} />
-                    <IconButton icon="trash-can" onPress={() => setDeleting({ id: store._id, kind: 'store' })} />
-                  </View>
-                )}
-              />
-            </Card>
-          ))}
+          {stores.length === 0 ? (
+            <View style={styles.emptyWrap}><Text>No items available</Text></View>
+          ) : (
+            stores.map(store => (
+              <Card key={store._id} style={styles.card} onPress={() => router.push(`/store/${store._id}`)}>
+                {store.image ? <Card.Cover source={{ uri: store.image }} style={styles.cover} /> : null}
+                <Card.Title
+                  title={store.name}
+                  subtitle={`Nested store`}
+                  right={() => (
+                    <View style={{ flexDirection: 'row' }}>
+                      <IconButton icon="pencil" onPress={() => openEdit('store', store)} />
+                      <IconButton icon="trash-can" onPress={() => setDeleting({ id: store._id, kind: 'store' })} />
+                    </View>
+                  )}
+                />
+              </Card>
+            ))
+          )}
 
           <Text variant="titleLarge" style={styles.heading}>Categories</Text>
-          {categories.map(category => (
-            <Card key={category._id} style={styles.card} onPress={() => router.push(`/category/${category._id}`)}>
-              {category.image ? <Card.Cover source={{ uri: category.image }} style={styles.cover} /> : null}
-              <Card.Title
-                title={category.name}
-                subtitle={category.image ? 'Image available' : 'No image'}
-                right={() => (
-                  <View style={{ flexDirection: 'row' }}>
-                    <IconButton icon="pencil" onPress={() => openEdit('category', category)} />
-                    <IconButton icon="trash-can" onPress={() => setDeleting({ id: category._id, kind: 'category' })} />
-                  </View>
-                )}
-              />
-            </Card>
-          ))}
+          {categories.length === 0 ? (
+            <View style={styles.emptyWrap}><Text>No items available</Text></View>
+          ) : (
+            categories.map(category => (
+              <Card key={category._id} style={styles.card} onPress={() => router.push(`/category/${category._id}`)}>
+                {category.image ? <Card.Cover source={{ uri: category.image }} style={styles.cover} /> : null}
+                <Card.Title
+                  title={category.name}
+                  subtitle={category.image ? 'Image available' : 'No image'}
+                  right={() => (
+                    <View style={{ flexDirection: 'row' }}>
+                      <IconButton icon="pencil" onPress={() => openEdit('category', category)} />
+                      <IconButton icon="trash-can" onPress={() => setDeleting({ id: category._id, kind: 'category' })} />
+                    </View>
+                  )}
+                />
+              </Card>
+            ))
+          )}
         </ScrollView>
       )}
 
@@ -232,4 +240,5 @@ const styles = StyleSheet.create({
   cover: { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   dialogScroll: { maxHeight: 420 },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
 });

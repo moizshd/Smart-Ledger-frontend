@@ -1,4 +1,5 @@
 // app/dashboard.tsx
+import DatePickerField from '@/components/ui/DatePickerField';
 import { Issue, Store } from '@/types/types';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -142,22 +143,26 @@ export default function DashboardScreen() {
           <ScrollView style={styles.container}>
             <Text variant="titleLarge" style={styles.heading}>Your Stores</Text>
 
-            {stores.map(store => (
-              <Card key={store._id} style={styles.card} onPress={() => router.push(`/store/${store._id}`)}>
-                {store.image ? (
-                  <Card.Cover source={{ uri: store.image }} style={styles.cover} />
-                ) : null}
-                <Card.Title
-                  title={store.name}
-                  right={() => (
-                    <View style={{ flexDirection: 'row' }}>
-                      <IconButton icon="pencil" onPress={() => openEditStore(store as any)} />
-                      <IconButton icon="trash-can" onPress={() => setDeleteStoreId(store._id)} />
-                    </View>
-                  )}
-                />
-              </Card>
-            ))}
+            {stores.length === 0 ? (
+              <View style={styles.emptyWrap}><Text>No items available</Text></View>
+            ) : (
+              stores.map(store => (
+                <Card key={store._id} style={styles.card} onPress={() => router.push(`/store/${store._id}`)}>
+                  {store.image ? (
+                    <Card.Cover source={{ uri: store.image }} style={styles.cover} />
+                  ) : null}
+                  <Card.Title
+                    title={store.name}
+                    right={() => (
+                      <View style={{ flexDirection: 'row' }}>
+                        <IconButton icon="pencil" onPress={() => openEditStore(store as any)} />
+                        <IconButton icon="trash-can" onPress={() => setDeleteStoreId(store._id)} />
+                      </View>
+                    )}
+                  />
+                </Card>
+              ))
+            )}
           </ScrollView>
         )
       ) : (
@@ -168,17 +173,21 @@ export default function DashboardScreen() {
         ) : (
           <ScrollView style={styles.container}>
             <Text variant="titleLarge" style={styles.heading}>Issued Items</Text>
-            {issuedResults.map(issue => (
-              <Card key={issue._id} style={styles.card}>
-                <Card.Content>
-                  <Text style={styles.title}>{issue.name}</Text>
-                  <Text>Qty: {issue.quantity}</Text>
-                  <Text>Approved by: {issue.approvingAuthority}</Text>
-                  <Text>Date: {issue.date} | Time: {issue.issueTime}</Text>
-                  <Text>Condition: {issue.condition}</Text>
-                </Card.Content>
-              </Card>
-            ))}
+            {issuedResults.length === 0 ? (
+              <View style={styles.emptyWrap}><Text>No items available</Text></View>
+            ) : (
+              issuedResults.map(issue => (
+                <Card key={issue._id} style={styles.card}>
+                  <Card.Content>
+                    <Text style={styles.title}>{issue.name}</Text>
+                    <Text>Qty: {issue.quantity}</Text>
+                    <Text>Approved by: {issue.approvingAuthority}</Text>
+                    <Text>Date: {issue.date} | Time: {issue.issueTime}</Text>
+                    <Text>Condition: {issue.condition}</Text>
+                  </Card.Content>
+                </Card>
+              ))
+            )}
             <Button mode="text" onPress={clearFilters}>Clear filters</Button>
           </ScrollView>
         )
@@ -225,6 +234,44 @@ export default function DashboardScreen() {
         </Dialog>
       </Portal>
 
+      {/* Search Dialog */}
+      <Portal>
+        <Dialog visible={searchVisible} onDismiss={() => setSearchVisible(false)}>
+          <Dialog.Title>Search Issued Items</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              label="Name"
+              value={filters.name}
+              onChangeText={t => setFilters(p => ({ ...p, name: t }))}
+              style={styles.input}
+            />
+            <TextInput
+              label="Approving Authority"
+              value={filters.approvingAuthority}
+              onChangeText={t => setFilters(p => ({ ...p, approvingAuthority: t }))}
+              style={styles.input}
+            />
+            <TextInput
+              label="Condition"
+              value={filters.condition}
+              onChangeText={t => setFilters(p => ({ ...p, condition: t }))}
+              style={styles.input}
+            />
+            <DatePickerField label="Date" value={filters.date} onChange={t => setFilters(p => ({ ...p, date: t }))} />
+            <TextInput
+              label="Issue Time"
+              value={filters.issueTime}
+              onChangeText={t => setFilters(p => ({ ...p, issueTime: t }))}
+              style={styles.input}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={clearFilters}>Clear</Button>
+            <Button mode="contained" onPress={applyFilters}>Apply Filters</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       <Snackbar visible={snackbar.visible} onDismiss={() => setSnackbar({ visible: false, message: '' })} duration={3000}>
         {snackbar.message}
       </Snackbar>
@@ -242,4 +289,5 @@ const styles = StyleSheet.create({
   title: { fontWeight: 'bold' },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
   dialogScroll: { maxHeight: 420 },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
 });
