@@ -1,11 +1,10 @@
 // app/dashboard.tsx
-import DatePickerField from '@/components/ui/DatePickerField';
 import { Issue, Store } from '@/types/types';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Appbar, Button, Card, Dialog, FAB, Portal, Text, TextInput } from 'react-native-paper';
+import { ActivityIndicator, Appbar, Button, Card, Dialog, FAB, IconButton, Portal, Snackbar, Text, TextInput } from 'react-native-paper';
 import API from '../utils/api';
 
 export default function DashboardScreen() {
@@ -18,6 +17,11 @@ export default function DashboardScreen() {
   // loading flags
   const [fetchingStores, setFetchingStores] = useState(false);
   const [fetchingIssues, setFetchingIssues] = useState(false);
+
+  // Edit/Delete state
+  const [editingStoreId, setEditingStoreId] = useState<string | null>(null);
+  const [deleteStoreId, setDeleteStoreId] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
 
   // Search state
   const [searchVisible, setSearchVisible] = useState(false);
@@ -50,13 +54,49 @@ export default function DashboardScreen() {
     }
   };
 
-  const addStore = async () => {
+  const openAddStore = () => {
+    setEditingStoreId(null);
+    setNewStore({ name: '', image: '' });
+    setDialogVisible(true);
+  };
+
+  const openEditStore = (store: Store & Partial<{ image: string }>) => {
+    setEditingStoreId(store._id);
+    setNewStore({ name: store.name, image: (store as any).image || '' });
+    setDialogVisible(true);
+  };
+
+  const submitStore = async () => {
     try {
       setLoading(true);
-      await API.post('/stores', newStore);
+      if (editingStoreId) {
+        const res = await API.put(`/stores/${editingStoreId}`, { name: newStore.name, image: newStore.image, parentStore: null });
+        setStores(prev => prev.map(s => (s._id === editingStoreId ? res.data : s)));
+      } else {
+        await API.post('/stores', newStore);
+        fetchStores();
+      }
       setDialogVisible(false);
+      setEditingStoreId(null);
       setNewStore({ name: '', image: '' });
-      fetchStores();
+    } catch (e:any) {
+      const msg = e?.response?.data?.message || 'Operation failed';
+      setSnackbar({ visible: true, message: msg });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteStoreId) return;
+    try {
+      setLoading(true);
+      await API.delete(`/stores/${deleteStoreId}`);
+      setStores(prev => prev.filter(s => s._id !== deleteStoreId));
+      setDeleteStoreId(null);
+    } catch (e:any) {
+      const msg = e?.response?.data?.message || 'Delete failed';
+      setSnackbar({ visible: true, message: msg });
     } finally {
       setLoading(false);
     }
@@ -88,7 +128,7 @@ export default function DashboardScreen() {
     <View style={{ flex: 1 }}>
       <Appbar.Header mode="center-aligned">
         <Appbar.Content title="Dashboard" subtitle={`Stores ${summary.stores} · Items ${summary.items} · Issued ${summary.issued}`} />
-        <Appbar.Action icon="store-plus" onPress={() => setDialogVisible(true)} />
+        <Appbar.Action icon="store-plus" onPress={openAddStore} />
         <Appbar.Action icon="magnify" onPress={() => setSearchVisible(true)} />
         <Appbar.Action icon="logout" onPress={() => router.replace('/login')} />
       </Appbar.Header>
@@ -107,7 +147,15 @@ export default function DashboardScreen() {
                 {store.image ? (
                   <Card.Cover source={{ uri: store.image }} style={styles.cover} />
                 ) : null}
-                <Card.Title title={store.name} />
+                <Card.Title
+                  title={store.name}
+                  right={() => (
+                    <View style={{ flexDirection: 'row' }}>
+                      <IconButton icon="pencil" onPress={() => openEditStore(store as any)} />
+                      <IconButton icon="trash-can" onPress={() => setDeleteStoreId(store._id)} />
+                    </View>
+                  )}
+                />
               </Card>
             ))}
           </ScrollView>
@@ -136,68 +184,50 @@ export default function DashboardScreen() {
         )
       )}
 
-      <FAB icon="plus" style={styles.fab} onPress={() => setDialogVisible(true)} label="Add Store" />
+      <FAB icon="plus" style={styles.fab} onPress={openAddStore} label="Add Store" />
 
-      {/* Add Store Dialog */}
+      {/* Add/Edit Store Dialog */}
       <Portal>
-        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>Add Store</Dialog.Title>
+        <Dialog visible={dialogVisible} onDismiss={() => { setDialogVisible(false); setEditingStoreId(null); }}>
+          <Dialog.Title>{editingStoreId ? 'Edit Store' : 'Add Store'}</Dialog.Title>
           <Dialog.Content>
-            <TextInput
-              label="Store Name"
-              value={newStore.name}
-              onChangeText={t => setNewStore(p => ({ ...p, name: t }))}
-              style={styles.input}
-            />
-            <Button mode="outlined" onPress={pickImage}>Pick Image</Button>
-            {newStore.image ? (
-              <Image source={{ uri: newStore.image }} style={{ width: 100, height: 100, marginVertical: 10, borderRadius: 8 }} />
-            ) : null}
+            <ScrollView style={styles.dialogScroll} contentContainerStyle={{ paddingBottom: 8 }}>
+              <TextInput
+                label="Store Name"
+                value={newStore.name}
+                onChangeText={t => setNewStore(p => ({ ...p, name: t }))}
+                style={styles.input}
+              />
+              <Button mode="outlined" onPress={pickImage}>Pick Image</Button>
+              {newStore.image ? (
+                <Image source={{ uri: newStore.image }} style={{ width: 100, height: 100, marginVertical: 10, borderRadius: 8 }} />
+              ) : null}
+            </ScrollView>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
-            <Button mode="contained" onPress={addStore} loading={loading} disabled={loading}>Submit</Button>
+            <Button onPress={() => { setDialogVisible(false); setEditingStoreId(null); }}>Cancel</Button>
+            <Button mode="contained" onPress={submitStore} loading={loading} disabled={loading}>Submit</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
 
-      {/* Search Dialog */}
+      {/* Delete confirm */}
       <Portal>
-        <Dialog visible={searchVisible} onDismiss={() => setSearchVisible(false)}>
-          <Dialog.Title>Search Issued Items</Dialog.Title>
+        <Dialog visible={!!deleteStoreId} onDismiss={() => setDeleteStoreId(null)}>
+          <Dialog.Title>Delete Store</Dialog.Title>
           <Dialog.Content>
-            <TextInput
-              label="Name"
-              value={filters.name}
-              onChangeText={t => setFilters(p => ({ ...p, name: t }))}
-              style={styles.input}
-            />
-            <TextInput
-              label="Approving Authority"
-              value={filters.approvingAuthority}
-              onChangeText={t => setFilters(p => ({ ...p, approvingAuthority: t }))}
-              style={styles.input}
-            />
-            <TextInput
-              label="Condition"
-              value={filters.condition}
-              onChangeText={t => setFilters(p => ({ ...p, condition: t }))}
-              style={styles.input}
-            />
-            <DatePickerField label="Date" value={filters.date} onChange={t => setFilters(p => ({ ...p, date: t }))} />
-            <TextInput
-              label="Issue Time"
-              value={filters.issueTime}
-              onChangeText={t => setFilters(p => ({ ...p, issueTime: t }))}
-              style={styles.input}
-            />
+            <Text>Are you sure you want to delete this store?</Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={clearFilters}>Clear</Button>
-            <Button mode="contained" onPress={applyFilters}>Apply Filters</Button>
+            <Button onPress={() => setDeleteStoreId(null)}>Cancel</Button>
+            <Button mode="contained" onPress={confirmDelete} loading={loading} disabled={loading}>Delete</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <Snackbar visible={snackbar.visible} onDismiss={() => setSnackbar({ visible: false, message: '' })} duration={3000}>
+        {snackbar.message}
+      </Snackbar>
     </View>
   );
 }
@@ -211,4 +241,5 @@ const styles = StyleSheet.create({
   cover: { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
   title: { fontWeight: 'bold' },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
+  dialogScroll: { maxHeight: 420 },
 });

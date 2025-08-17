@@ -32,4 +32,5 @@ export interface Issue {
   category: string;
   issueTime: string;
   condition: string;
+  issued_to?: string;
 }

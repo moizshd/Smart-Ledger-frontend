@@ -2,10 +2,10 @@
 import DatePickerField from '@/components/ui/DatePickerField';
 import { Issue, Item } from '@/types/types';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
-import { Appbar, Button, Card, Dialog, Portal, Text, TextInput } from 'react-native-paper';
+import { Appbar, Button, Card, Dialog, IconButton, Portal, Snackbar, Text, TextInput } from 'react-native-paper';
 import API from '../../utils/api';
 
 export default function CategoryScreen() {
@@ -19,6 +19,11 @@ export default function CategoryScreen() {
   const [newItem, setNewItem] = useState({ name: '', description: '', quantity: '', condition: '' });
   const [filters, setFilters] = useState({ name: '', approvingAuthority: '', condition: '', date: '', issueTime: '' });
 
+  // Edit/Delete state
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ visible: boolean; message: string }>({ visible: false, message: '' });
+
   // Dropdown state
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState<string | null>(null);
@@ -27,7 +32,7 @@ export default function CategoryScreen() {
   // Issue form state
   const [issueForm, setIssueForm] = useState({
     item: '',
-    name: '',
+    issued_to: '',
     date: '',
     quantity: '',
     approvingAuthority: '',
@@ -36,6 +41,11 @@ export default function CategoryScreen() {
   });
 
   const [loading, setLoading] = useState(false);
+
+  const selectedItemName = useMemo(() => {
+    const found = items.find(i => i._id === value);
+    return found?.name || '';
+  }, [value, items]);
 
   // Fetch items
   const fetchItems = async () => {
@@ -60,7 +70,6 @@ export default function CategoryScreen() {
     setDropdownItems(formatted);
     if (formatted.length > 0 && !value) {
       setValue(formatted[0].value);
-      setIssueForm(prev => ({ ...prev, item: formatted[0].value }));
     }
   }, [items]);
 
@@ -78,16 +87,59 @@ export default function CategoryScreen() {
   };
 
   const upsertLocalItem = (updated: Item) => {
-    setItems(prev => prev.map(i => (i._id === updated._id ? { ...i, quantity: updated.quantity } : i)));
+    setItems(prev => prev.map(i => (i._id === updated._id ? { ...i, quantity: updated.quantity, name: updated.name, description: (updated as any).description, condition: updated.condition } : i)));
   };
 
-  const addItem = async () => {
+  const openAddItem = () => {
+    setEditingItemId(null);
+    setNewItem({ name: '', description: '', quantity: '', condition: '' });
+    setModalAddItem(true);
+  };
+
+  const openEditItem = (item: Item) => {
+    setEditingItemId(item._id);
+    setNewItem({
+      name: item.name,
+      description: item.description || '',
+      quantity: String(item.quantity),
+      condition: item.condition || '',
+    });
+    setModalAddItem(true);
+  };
+
+  const submitItem = async () => {
     try {
       setLoading(true);
-      await API.post('/items', { ...newItem, quantity: Number(newItem.quantity), category: categoryId });
+      if (editingItemId) {
+        const res = await API.put(`/items/${editingItemId}`, {
+          name: newItem.name,
+          description: newItem.description,
+          quantity: Number(newItem.quantity),
+          condition: newItem.condition,
+        });
+        upsertLocalItem(res.data);
+      } else {
+        await API.post('/items', { ...newItem, quantity: Number(newItem.quantity), category: categoryId });
+        fetchItems();
+      }
       setModalAddItem(false);
+      setEditingItemId(null);
       setNewItem({ name: '', description: '', quantity: '', condition: '' });
-      fetchItems();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    try {
+      setLoading(true);
+      await API.delete(`/items/${deleteId}`);
+      setItems(prev => prev.filter(i => i._id !== deleteId));
+      setDeleteId(null);
+    } catch (e:any) {
+      const msg = e?.response?.data?.message || 'Unable to delete item';
+      setSnackbar({ visible: true, message: msg });
     } finally {
       setLoading(false);
     }
@@ -96,10 +148,11 @@ export default function CategoryScreen() {
   const issueItem = async () => {
     try {
       setLoading(true);
-      const res = await API.post('/issues', { ...issueForm, category: categoryId });
+      const payload = { ...issueForm, category: categoryId, item: value, name: selectedItemName } as any;
+      const res = await API.post('/issues', payload);
       if (res.data?.item) upsertLocalItem(res.data.item);
       setModalIssueItem(false);
-      setIssueForm({ item: value || '', name: '', date: '', quantity: '', approvingAuthority: '', issueTime: '', condition: '' });
+      setIssueForm({ item: value || '', issued_to: '', date: '', quantity: '', approvingAuthority: '', issueTime: '', condition: '' });
       fetchIssues();
     } finally {
       setLoading(false);
@@ -129,12 +182,21 @@ export default function CategoryScreen() {
         {items.map(item => (
           <Card key={item._id} style={styles.card}>
             {item.image ? <Card.Cover source={{ uri: item.image }} style={styles.cover} /> : null}
-            <Card.Title title={item.name} subtitle={`Qty: ${item.quantity}`} />
+            <Card.Title
+              title={item.name}
+              subtitle={`Qty: ${item.quantity}`}
+              right={() => (
+                <View style={{ flexDirection: 'row' }}>
+                  <IconButton icon="pencil" onPress={() => openEditItem(item)} />
+                  <IconButton icon="trash-can" onPress={() => setDeleteId(item._id)} />
+                </View>
+              )}
+            />
           </Card>
         ))}
 
         <View style={styles.row}>
-          <Button mode="contained" onPress={() => setModalAddItem(true)}>Add Item</Button>
+          <Button mode="contained" onPress={openAddItem}>Add Item</Button>
           <Button mode="outlined" onPress={() => setModalIssueItem(true)}>Issue Item</Button>
         </View>
 
@@ -187,10 +249,10 @@ export default function CategoryScreen() {
         ))}
       </ScrollView>
 
-      {/* MODAL: ADD ITEM */}
+      {/* MODAL: ADD/EDIT ITEM */}
       <Portal>
-        <Dialog visible={modalAddItem} onDismiss={() => setModalAddItem(false)}>
-          <Dialog.Title>Add Item</Dialog.Title>
+        <Dialog visible={modalAddItem} onDismiss={() => { setModalAddItem(false); setEditingItemId(null); }}>
+          <Dialog.Title>{editingItemId ? 'Edit Item' : 'Add Item'}</Dialog.Title>
           <Dialog.Content>
             <ScrollView style={styles.dialogScroll} contentContainerStyle={{ paddingBottom: 8 }}>
               {['name', 'description', 'quantity', 'condition'].map(field => (
@@ -206,8 +268,8 @@ export default function CategoryScreen() {
             </ScrollView>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setModalAddItem(false)}>Cancel</Button>
-            <Button mode="contained" onPress={addItem} loading={loading} disabled={loading}>Submit</Button>
+            <Button onPress={() => { setModalAddItem(false); setEditingItemId(null); }}>Cancel</Button>
+            <Button mode="contained" onPress={submitItem} loading={loading} disabled={loading}>Submit</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -235,9 +297,9 @@ export default function CategoryScreen() {
               </View>
 
               <TextInput
-                label="Name"
-                value={issueForm.name}
-                onChangeText={t => handleChangeIssue('name', t)}
+                label="Issued To"
+                value={issueForm.issued_to}
+                onChangeText={t => handleChangeIssue('issued_to', t)}
                 style={styles.input}
               />
               <DatePickerField label="Date" value={issueForm.date} onChange={t => handleChangeIssue('date', t)} />
@@ -274,6 +336,24 @@ export default function CategoryScreen() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      {/* Delete confirm */}
+      <Portal>
+        <Dialog visible={!!deleteId} onDismiss={() => setDeleteId(null)}>
+          <Dialog.Title>Delete Item</Dialog.Title>
+          <Dialog.Content>
+            <Text>Are you sure you want to delete this item?</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setDeleteId(null)}>Cancel</Button>
+            <Button mode="contained" onPress={confirmDelete} loading={loading} disabled={loading}>Delete</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Snackbar visible={snackbar.visible} onDismiss={() => setSnackbar({ visible: false, message: '' })} duration={3000}>
+        {snackbar.message}
+      </Snackbar>
     </View>
   );
 }
