@@ -8,6 +8,27 @@ import DropDownPicker from 'react-native-dropdown-picker';
 import { Appbar, Button, Card, Dialog, IconButton, Portal, Snackbar, Text, TextInput } from 'react-native-paper';
 import API from '../../utils/api';
 
+function formatDateDMY(input: string): string {
+  if (!input) return '';
+  // Try ISO or date-parsable strings
+  const maybeDate = new Date(input);
+  if (!isNaN(maybeDate.getTime())) {
+    const dd = String(maybeDate.getDate()).padStart(2, '0');
+    const mm = String(maybeDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = String(maybeDate.getFullYear());
+    return `${dd}-${mm}-${yyyy}`;
+  }
+  // Fallback for YYYY-MM-DD strings
+  const parts = input.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    const dd = d.padStart(2, '0');
+    const mm = m.padStart(2, '0');
+    return `${dd}-${mm}-${y}`;
+  }
+  return input;
+}
+
 export default function CategoryScreen() {
   const { categoryId } = useLocalSearchParams<{ categoryId: string }>();
   const router = useRouter();
@@ -179,7 +200,10 @@ export default function CategoryScreen() {
 
       <ScrollView style={styles.container}>
         <Text variant="titleLarge" style={styles.heading}>Items</Text>
-        {items.map(item => (
+        {items.length === 0 ? (
+          <View style={styles.emptyWrap}><Text>No items available</Text></View>
+        ) : (
+          items.map(item => (
           <Card key={item._id} style={styles.card}>
             {item.image ? <Card.Cover source={{ uri: item.image }} style={styles.cover} /> : null}
             <Card.Title
@@ -193,14 +217,15 @@ export default function CategoryScreen() {
               )}
             />
           </Card>
-        ))}
+          ))
+        )}
 
         <View style={styles.row}>
           <Button mode="contained" onPress={openAddItem}>Add Item</Button>
           <Button mode="outlined" onPress={() => setModalIssueItem(true)}>Issue Item</Button>
         </View>
 
-        {/* FILTER SECTION */}
+        {/* FILTER SECTION
         <Text variant="titleLarge" style={styles.heading}>Filter Issued Items</Text>
         <TextInput
           label="Name"
@@ -227,17 +252,21 @@ export default function CategoryScreen() {
           onChangeText={t => setFilters(p => ({ ...p, issueTime: t }))}
           style={styles.input}
         />
-        <Button mode="contained" onPress={fetchIssues}>Apply Filters</Button>
+        <Button mode="contained" onPress={fetchIssues}>Apply Filters</Button> */}
 
         {/* ISSUED ITEMS LIST */}
         <Text variant="titleLarge" style={styles.heading}>Issued Items</Text>
-        {issues.map(issue => (
+        {issues.length === 0 ? (
+          <View style={styles.emptyWrap}><Text>No items available</Text></View>
+        ) : (
+          issues.map(issue => (
           <Card key={issue._id} style={styles.card}>
             <Card.Content>
               <Text style={styles.title}>{issue.name}</Text>
+              <Text>Issued To: {issue.issued_to}</Text>
               <Text>Qty: {issue.quantity}</Text>
               <Text>Approved by: {issue.approvingAuthority}</Text>
-              <Text>Date: {issue.date} | Time: {issue.issueTime}</Text>
+              <Text>Date: {formatDateDMY(issue.date)} | Time: {issue.issueTime}</Text>
               <Text>Condition: {issue.condition}</Text>
               <View style={{ marginTop: 8 }}>
                 <Button mode="text" onPress={() => unissueById(issue)} loading={loading} disabled={loading}>
@@ -246,7 +275,8 @@ export default function CategoryScreen() {
               </View>
             </Card.Content>
           </Card>
-        ))}
+          ))
+        )}
       </ScrollView>
 
       {/* MODAL: ADD/EDIT ITEM */}
@@ -370,4 +400,5 @@ const styles = StyleSheet.create({
   dropDownContainer: { },
   cover: { borderTopLeftRadius: 12, borderTopRightRadius: 12 },
   dialogScroll: { maxHeight: 420 },
+  emptyWrap: { alignItems: 'center', justifyContent: 'center', paddingVertical: 24 },
 });

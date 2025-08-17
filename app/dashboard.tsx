@@ -267,7 +267,7 @@ export default function DashboardScreen() {
           </Dialog.Content>
           <Dialog.Actions>
             <Button onPress={clearFilters}>Clear</Button>
-            <Button mode="contained" onPress={applyFilters}>Apply Filters</Button>
+            <Button mode="contained" onPress={applyFilters} loading={fetchingIssues} disabled={fetchingIssues}>Apply Filters</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
